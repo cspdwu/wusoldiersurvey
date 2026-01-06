@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบสำรวจการดำเนินการยื่นผ่อนผันการเกณฑ์ทหารฯ</title>
+
+  <!-- Fonts: Sarabun -->
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background-color: #f3f4f6; /* Gray-100 */
+    }
+    .wu-purple {
+      color: #581C87;
+    }
+    .bg-wu-purple {
+      background-color: #581C87;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 4px solid #581C87;
+      width: 40px;
+      height: 40px;
+      -webkit-animation: spin 1s linear infinite; /* Safari */
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .hidden-force {
+      display: none !important;
+    }
+    /* Disabled input style override */
+    select:disabled {
+      background-color: #f3f4f6;
+      color: #6b7280;
+      cursor: not-allowed;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- Container -->
+  <div class="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
+
+    <!-- Header -->
+    <div class="bg-wu-purple p-6 text-center text-white relative">
+      <div class="absolute top-4 left-4 text-white opacity-80 text-xl">
+        <i class="fa-solid fa-person-military-rifle"></i>
+      </div>
+      <h1 class="text-xl font-bold md:text-2xl">ระบบสำรวจการดำเนินการ<br>ยื่นผ่อนผันการเกณฑ์ทหารฯ</h1>
+      <p class="text-sm mt-2 font-light opacity-90">มหาวิทยาลัยวลัยลักษณ์ (พ.ศ. 2569)</p>
+    </div>
+
+    <!-- Content Area -->
+    <div class="p-6 md:p-8">
+
+      <!-- Loading State -->
+      <div id="loadingState" class="flex flex-col items-center justify-center py-10 hidden-force">
+        <div class="loader mb-4"></div>
+        <p class="text-gray-500">กำลังประมวลผล...</p>
+      </div>
+
+      <!-- Section: Login -->
+      <div id="loginSection">
+        <p class="text-gray-600 mb-6 text-center text-sm">กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบ (เฉพาะนักศึกษาชาย เกิด พ.ศ. 2548)</p>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="studentCode">
+              เลขประจำตัวนักศึกษา
+            </label>
+            <input class="shadow appearance-none border rounded w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-600 transition duration-200"
+              id="studentCode" type="number" placeholder="กรอกเลขประจำตัวนักศึกษา 8 หลัก" required>
+          </div>
+
+          <div class="mb-6">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="citizenId">
+              เลขบัตรประชาชน
+            </label>
+            <input class="shadow appearance-none border rounded w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-600 transition duration-200"
+              id="citizenId" type="text" maxlength="13" placeholder="กรอกเลขบัตรประชาชน 13 หลัก" required>
+          </div>
+
+          <div class="flex items-center justify-center">
+            <button class="bg-wu-purple hover:bg-purple-800 text-white font-bold py-3 px-6 rounded-lg w-full focus:outline-none focus:shadow-outline transition duration-300 transform hover:scale-105"
+              type="submit">
+              ตรวจสอบข้อมูล
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Section: Student Data & Survey -->
+      <div id="surveySection" class="hidden-force space-y-6">
+
+        <!-- Part 1: Student Info -->
+        <div class="bg-purple-50 rounded-lg p-4 border border-purple-100 relative">
+          <!-- Status Badge (Top Right) -->
+          <div id="statusBadge" class="absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full hidden-force shadow-sm">
+            <!-- Content will be set by JS -->
+          </div>
+
+          <h3 class="text-wu-purple font-bold border-b border-purple-200 pb-2 mb-3 pr-24">
+            <i class="fa-solid fa-user-graduate mr-2"></i>ข้อมูลนักศึกษา
+          </h3>
+          <div class="text-sm space-y-2 text-gray-700">
+            <p><span class="font-semibold w-24 inline-block">รหัสนักศึกษา:</span> <span id="disp_studentCode">-</span></p>
+            <p><span class="font-semibold w-24 inline-block">ชื่อ-สกุล:</span> <span id="disp_studentName">-</span></p>
+            <p><span class="font-semibold w-24 inline-block">สำนักวิชา:</span> <span id="disp_faculty">-</span></p>
+            <p><span class="font-semibold w-24 inline-block">หลักสูตร:</span> <span id="disp_program">-</span></p>
+            <p><span class="font-semibold w-24 inline-block">จังหวัด:</span> <span id="disp_province">-</span></p>
+
+            <!-- เพิ่มส่วนแสดงสถานะ -->
+            <p class="border-t border-purple-200 pt-2 mt-2">
+              <span class="font-semibold w-24 inline-block">สถานะเดิม:</span>
+              <span id="disp_currentStatus" class="font-bold">-</span>
+            </p>
+
+            <!-- เพิ่มส่วนแสดงวันที่บันทึก -->
+            <p id="row_lastRecorded" class="text-xs text-gray-500 mt-1 hidden-force">
+              <span class="font-semibold"><i class="fa-regular fa-clock mr-1"></i>บันทึกข้อมูลล่าสุด:</span>
+              <span id="disp_lastRecorded">-</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Part 2: Status Survey -->
+        <form id="saveForm" onsubmit="handleSave(event)">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-gray-700 text-sm font-bold mb-2">
+                สถานะการดำเนินการด้านทหาร <span class="text-red-500">*</span>
+              </label>
+              <select id="militaryStatus" onchange="checkReservationRequirement()" class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-3 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline" required>
+                <option value="" disabled selected>-- กรุณาเลือกสถานะ --</option>
+                <option value="เรียนจบหลักสูตร นศท. ชั้นปี 3">เรียนจบหลักสูตร นศท. ชั้นปี 3</option>
+                <option value="กำลังเรียนต่อ นศท. ชั้นปี 3 และสูงขึ้นไป">กำลังเรียนต่อ นศท. ชั้นปี 3 และสูงขึ้นไป</option>
+                <option value="ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ">ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ</option>
+                <option value="สละสิทธิ์การผ่อนผันการเกณฑ์ทหารฯ">สละสิทธิ์การผ่อนผันการเกณฑ์ทหารฯ</option>
+              </select>
+            </div>
+
+            <!-- Part 3: Reservation (Conditional) -->
+            <div id="reservationContainer" class="opacity-50 pointer-events-none transition-all duration-300">
+              <label class="block text-gray-700 text-sm font-bold mb-2">
+                เลือกวันยื่นผ่อนผันฯ (เฉพาะผู้ที่ยังไม่ได้ดำเนินการ) <span class="text-red-500" id="resReq" style="display:none;">*</span>
+              </label>
+              <div class="relative">
+                <select id="reservationDate" class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-3 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline">
+                  <option value="" selected>-- เลือกวันเวลา --</option>
+                  <option value="วันจันทร์ ที่ 12 มกราคม 2569 เวลา 9.00 - 16.00 น.">วันจันทร์ ที่ 12 มกราคม 2569 เวลา 9.00 - 16.00 น.</option>
+                  <option value="วันพุธ ที่ 14 มกราคม 2569 เวลา 9.00 - 16.00 น.">วันพุธ ที่ 14 มกราคม 2569 เวลา 9.00 - 16.00 น.</option>
+                  <option value="วันศุกร์ ที่ 16 มกราคม 2569 เวลา 9.00 - 16.00 น.">วันศุกร์ ที่ 16 มกราคม 2569 เวลา 9.00 - 16.00 น.</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <i class="fa-solid fa-calendar-days text-sm"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-4">
+              <button id="btnSave" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg w-full shadow-lg transition duration-300 flex items-center justify-center gap-2"
+                type="submit">
+                <i class="fa-solid fa-save"></i> บันทึกข้อมูล
+              </button>
+              <button type="button" onclick="logout()" class="mt-3 text-gray-500 text-sm underline w-full text-center hover:text-gray-700">
+                ออกจากระบบ / ตรวจสอบใหม่
+              </button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="bg-gray-100 p-4 text-center text-xs text-gray-500 space-y-1">
+      <p>&copy; 2026 ฝ่ายส่งเสริมสุขภาวะนักศึกษา (งานทหาร) ศูนย์ส่งเสริมและพัฒนานักศึกษา</p>
+      <p class="font-light">Developed By : CSPD IT-Support</p>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * MOCK GOOGLE SCRIPT RUN FOR LOCAL/PREVIEW TESTING ONLY
+     * ส่วนนี้จะทำงานเฉพาะในหน้า Preview ของ Editor เท่านั้น
+     */
+    if (typeof google === 'undefined' || typeof google.script === 'undefined') {
+      console.log('Running in Mock Mode');
+      window.google = {
+        script: {
+          run: {
+            withSuccessHandler: function(successCallback) {
+              this.successHandler = successCallback;
+              return this;
+            },
+            withFailureHandler: function(failureCallback) {
+              this.failureHandler = failureCallback;
+              return this;
+            },
+            checkSystemStatus: function() {
+              setTimeout(() => {
+                // Change to false to test "Closed" state
+                if(this.successHandler) this.successHandler({ isOpen: true, message: 'ระบบเปิดให้บริการ' });
+              }, 500);
+            },
+            loginUser: function(code, citizen) {
+              setTimeout(() => {
+                // *** RELAXED MOCK LOGIC: ACCEPT ANY VALID LENGTH FOR TESTING UI ***
+                if (code && citizen && citizen.length === 13) {
+
+                  Swal.fire({
+                    icon: 'info',
+                    title: 'โหมดจำลอง (Preview)',
+                    text: 'เข้าสู่ระบบสำเร็จด้วยข้อมูลจำลอง (หน้า Preview ไม่ได้เชื่อมต่อ Google Sheet จริง)',
+                    timer: 2000,
+                    showConfirmButton: false
+                  });
+
+                  // SIMULATE: User who has already submitted data
+                  const mockData = {
+                    success: true,
+                    data: {
+                      studentCode: code,
+                      studentName: "นายสมมติ ทดสอบระบบ (จำลอง)",
+                      faculty: "วิศวกรรมศาสตร์และเทคโนโลยี",
+                      program: "วิศวกรรมคอมพิวเตอร์",
+                      province: "นครศรีธรรมราช",
+                      // currentStatus: "เตรียมส่งสัสดีจังหวัด", // Mock กรณีสถานะพิเศษ
+                      currentStatus: "เรียนจบหลักสูตร นศท. ชั้นปี 3", // Mock ปกติ
+                      currentReservation: "",
+                      lastRecorded: "05/01/2026 14:30:00"
+                    }
+                  };
+                  if(this.successHandler) this.successHandler(mockData);
+                } else {
+                  if(this.successHandler) this.successHandler({ success: false, message: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบข้อมูล เลขประจำตัวนักศึกษา และเลขบัตรประชาชน ที่ถูกต้อง' });
+                }
+              }, 800);
+            },
+            saveData: function(code, citizen, status, reservation) {
+              setTimeout(() => {
+                if(this.successHandler) this.successHandler({
+                  success: true,
+                  timestamp: new Date().toLocaleString('th-TH')
+                });
+              }, 800);
+            }
+          }
+        }
+      };
+    }
+
+    // Global User Data
+    let currentUser = {};
+    let isSystemOpen = true; // Default
+
+    function toggleLoading(show) {
+      const loader = document.getElementById('loadingState');
+      const login = document.getElementById('loginSection');
+      const survey = document.getElementById('surveySection');
+
+      if (show) {
+        loader.classList.remove('hidden-force');
+        if(!login.classList.contains('hidden-force')) login.classList.add('hidden-force');
+        if(!survey.classList.contains('hidden-force')) survey.classList.add('hidden-force');
+      } else {
+        loader.classList.add('hidden-force');
+      }
+    }
+
+    function checkReservationRequirement() {
+      const statusSelect = document.getElementById('militaryStatus');
+      const status = statusSelect.value;
+      const resContainer = document.getElementById('reservationContainer');
+      const resSelect = document.getElementById('reservationDate');
+      const resReq = document.getElementById('resReq');
+
+      if (statusSelect.disabled) return;
+
+      if (status === 'ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ') {
+        resContainer.classList.remove('opacity-50', 'pointer-events-none');
+        resSelect.required = true;
+        resReq.style.display = 'inline';
+      } else {
+        resContainer.classList.add('opacity-50', 'pointer-events-none');
+        resSelect.value = "";
+        resSelect.required = false;
+        resReq.style.display = 'none';
+      }
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const code = document.getElementById('studentCode').value;
+      const citizen = document.getElementById('citizenId').value;
+
+      if (!code || !citizen) return;
+
+      toggleLoading(true);
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          isSystemOpen = response.isOpen;
+
+          // If closed, warn but allow login to see data (View Only)
+          if (!isSystemOpen) {
+             Swal.fire({
+              icon: 'warning',
+              title: 'ระบบปิดการสำรวจแล้ว',
+              text: 'ท่านสามารถตรวจสอบข้อมูลได้เท่านั้น แต่ไม่สามารถบันทึกข้อมูลได้',
+              confirmButtonText: 'รับทราบ',
+              confirmButtonColor: '#d33'
+            }).then(() => {
+              // Proceed to login logic
+               doLogin(code, citizen);
+            });
+          } else {
+            // Open, proceed directly
+            doLogin(code, citizen);
+          }
+        })
+        .withFailureHandler(onFailure)
+        .checkSystemStatus();
+    }
+
+    function doLogin(code, citizen) {
+        google.script.run
+            .withSuccessHandler(onLoginSuccess)
+            .withFailureHandler(onFailure)
+            .loginUser(code, citizen);
+    }
+
+    function onLoginSuccess(result) {
+      toggleLoading(false);
+
+      if (result.success) {
+        document.getElementById('loginSection').classList.add('hidden-force');
+        document.getElementById('surveySection').classList.remove('hidden-force');
+
+        currentUser = result.data;
+
+        // Populate Student Info
+        document.getElementById('disp_studentCode').textContent = currentUser.studentCode;
+        document.getElementById('disp_studentName').textContent = currentUser.studentName;
+        document.getElementById('disp_faculty').textContent = currentUser.faculty;
+        document.getElementById('disp_program').textContent = currentUser.program;
+        document.getElementById('disp_province').textContent = currentUser.province;
+
+        // --- UPDATE BADGE ---
+        const badge = document.getElementById('statusBadge');
+        badge.classList.remove('hidden-force');
+
+        if (isSystemOpen) {
+          badge.textContent = 'เปิดการสำรวจข้อมูล';
+          badge.className = 'absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 shadow-sm';
+        } else {
+          badge.textContent = 'ปิดการสำรวจแล้ว';
+          badge.className = 'absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 shadow-sm';
+        }
+
+        // --- STATUS LOGIC ---
+        const statusDisplay = document.getElementById('disp_currentStatus');
+        const militarySelect = document.getElementById('militaryStatus');
+        const reservationSelect = document.getElementById('reservationDate');
+        const saveButton = document.getElementById('btnSave');
+        const rowLastRec = document.getElementById('row_lastRecorded');
+        const dispLastRec = document.getElementById('disp_lastRecorded');
+
+        // Populate Existing Data
+        if (currentUser.currentStatus) {
+          statusDisplay.textContent = currentUser.currentStatus;
+          statusDisplay.className = "font-medium text-green-700";
+          militarySelect.value = currentUser.currentStatus;
+
+          if (currentUser.currentReservation) {
+            reservationSelect.value = currentUser.currentReservation;
+          }
+
+          if (currentUser.lastRecorded) {
+            rowLastRec.classList.remove('hidden-force');
+            dispLastRec.textContent = currentUser.lastRecorded;
+          }
+        } else {
+          statusDisplay.textContent = "[ไม่ทราบสถานะ]";
+          statusDisplay.className = "font-bold text-red-500";
+          militarySelect.value = "";
+          reservationSelect.value = "";
+          rowLastRec.classList.add('hidden-force');
+        }
+
+        // --- ENABLE/DISABLE LOGIC ---
+        // 1. If System is Closed -> Disable Everything
+        // 2. If System is Open -> Check Special Status (Sent to Sasdee) -> Disable
+        // 3. Else -> Enable
+
+        if (!isSystemOpen) {
+           // SYSTEM CLOSED
+           militarySelect.disabled = true;
+           reservationSelect.disabled = true;
+           saveButton.disabled = true;
+           saveButton.innerHTML = '<i class="fa-solid fa-lock"></i> ระบบปิดแล้ว';
+           saveButton.classList.add('opacity-50', 'cursor-not-allowed');
+           saveButton.classList.remove('hover:bg-green-700'); // Remove hover effect
+
+        } else if (currentUser.currentStatus === 'เตรียมส่งสัสดีจังหวัด') {
+           // SPECIAL STATUS LOCKED
+           militarySelect.disabled = true;
+           reservationSelect.disabled = true;
+           saveButton.disabled = true;
+           saveButton.innerHTML = '<i class="fa-solid fa-lock"></i> ไม่สามารถแก้ไขข้อมูลได้';
+           saveButton.classList.add('opacity-50', 'cursor-not-allowed');
+           statusDisplay.className = "font-bold text-orange-600";
+
+        } else {
+           // NORMAL (OPEN & EDITABLE)
+           militarySelect.disabled = false;
+           reservationSelect.disabled = false;
+           saveButton.disabled = false;
+           saveButton.innerHTML = '<i class="fa-solid fa-save"></i> บันทึกข้อมูล';
+           saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+           checkReservationRequirement();
+        }
+
+        // Initial check for reservation visibility (if disabled, function handles it)
+        if(isSystemOpen && currentUser.currentStatus !== 'เตรียมส่งสัสดีจังหวัด') {
+            checkReservationRequirement();
+        } else {
+             // If disabled, ensure reservation shows if value exists, but read-only style is handled by browser
+             // We just need to make sure the container is visible if there is a value
+             const resContainer = document.getElementById('reservationContainer');
+             if(currentUser.currentStatus === 'ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ') {
+                 resContainer.classList.remove('opacity-50', 'pointer-events-none');
+                 resContainer.classList.remove('hidden-force');
+             } else {
+                 if(!militarySelect.value) { // Clean start
+                    resContainer.classList.add('opacity-50', 'pointer-events-none');
+                 }
+             }
+        }
+
+      } else {
+        document.getElementById('loginSection').classList.remove('hidden-force');
+        Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: result.message,
+          confirmButtonColor: '#d33',
+          footer: 'หมายเหตุ: สำหรับนักศึกษาชาย ที่เกิด พ.ศ. 2548 เท่านั้น'
+        });
+      }
+    }
+
+    function handleSave(e) {
+      e.preventDefault();
+
+      const status = document.getElementById('militaryStatus').value;
+      const reservation = document.getElementById('reservationDate').value;
+
+      if (!status) {
+        Swal.fire('กรุณาเลือกสถานะ', '', 'warning');
+        return;
+      }
+
+      if (status === 'ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ' && !reservation) {
+        Swal.fire('กรุณาเลือกวันยื่นผ่อนผันฯ', '', 'warning');
+        return;
+      }
+
+      let confirmTitle = 'ยืนยันการบันทึกข้อมูล?';
+      let confirmText = 'กรุณาตรวจสอบความถูกต้องก่อนบันทึก';
+
+      // ถ้ามีประวัติการบันทึกแล้ว เปลี่ยนข้อความให้ทราบว่าเป็นการแก้ไข
+      if (currentUser.currentStatus) {
+          confirmTitle = 'ยืนยันการปรับปรุงข้อมูล?';
+          confirmText = 'ข้อมูลเดิมจะถูกแทนที่ด้วยข้อมูลใหม่';
+      }
+
+      Swal.fire({
+        title: confirmTitle,
+        text: confirmText,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#16a34a',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          toggleLoading(true);
+
+          google.script.run
+            .withSuccessHandler(function(res) {
+              toggleLoading(false);
+              document.getElementById('surveySection').classList.remove('hidden-force');
+
+              if (res.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'บันทึกข้อมูลสำเร็จ',
+                  text: 'ระบบได้บันทึกข้อมูลเรียบร้อยแล้ว เมื่อ ' + res.timestamp,
+                  confirmButtonColor: '#581C87'
+                }).then(() => {
+                    // Update Timestamp on UI immediately without reload
+                    const rowLastRec = document.getElementById('row_lastRecorded');
+                    const dispLastRec = document.getElementById('disp_lastRecorded');
+                    const statusDisplay = document.getElementById('disp_currentStatus');
+
+                    rowLastRec.classList.remove('hidden-force');
+                    dispLastRec.textContent = res.timestamp;
+
+                    // อัปเดตสถานะเดิมบนหน้าจอทันที ให้ผู้ใช้เห็นว่าเปลี่ยนแล้ว
+                    statusDisplay.textContent = status;
+                    statusDisplay.className = "font-medium text-green-700";
+
+                    // อัปเดตตัวแปร currentUser เพื่อให้การบันทึกครั้งต่อไปรู้ว่ามีข้อมูลแล้ว
+                    currentUser.currentStatus = status;
+                    currentUser.lastRecorded = res.timestamp;
+                });
+              } else {
+                Swal.fire('เกิดข้อผิดพลาด', res.message, 'error');
+              }
+            })
+            .withFailureHandler(onFailure)
+            .saveData(currentUser.studentCode, document.getElementById('citizenId').value, status, reservation);
+        }
+      });
+    }
+
+    function onFailure(error) {
+      toggleLoading(false);
+      if(Object.keys(currentUser).length > 0) {
+          document.getElementById('surveySection').classList.remove('hidden-force');
+      } else {
+          document.getElementById('loginSection').classList.remove('hidden-force');
+      }
+      Swal.fire({
+        icon: 'error',
+        title: 'System Error',
+        text: error.message
+      });
+    }
+
+    function logout() {
+      // 1. Clear Data
+      currentUser = {};
+      isSystemOpen = true; // Reset
+
+      // 2. Reset Forms
+      document.getElementById('loginForm').reset();
+      document.getElementById('saveForm').reset();
+
+      // 3. Switch Views
+      document.getElementById('surveySection').classList.add('hidden-force');
+      document.getElementById('loginSection').classList.remove('hidden-force');
+
+      // 4. Reset UI modifications (Button, Disabled fields, Text colors)
+
+      // Enable inputs
+      const militarySelect = document.getElementById('militaryStatus');
+      const reservationSelect = document.getElementById('reservationDate');
+      militarySelect.disabled = false;
+      reservationSelect.disabled = false;
+
+      // Reset Save Button
+      const saveButton = document.getElementById('btnSave');
+      saveButton.disabled = false;
+      saveButton.innerHTML = '<i class="fa-solid fa-save"></i> บันทึกข้อมูล';
+      saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+      // Reset Text Displays
+      document.getElementById('disp_currentStatus').textContent = '-';
+      document.getElementById('disp_currentStatus').className = '';
+      document.getElementById('row_lastRecorded').classList.add('hidden-force');
+
+      // Reset Badge
+      document.getElementById('statusBadge').classList.add('hidden-force');
+
+      // 5. Trigger reservation UI check to hide the reservation field
+      checkReservationRequirement();
+    }
+  </script>
+</body>
+</html>
