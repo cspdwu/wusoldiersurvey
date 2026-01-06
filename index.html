@@ -44,7 +44,6 @@
     .hidden-force {
       display: none !important;
     }
-    /* Disabled input style override */
     select:disabled {
       background-color: #f3f4f6;
       color: #6b7280;
@@ -114,10 +113,8 @@
         
         <!-- Part 1: Student Info -->
         <div class="bg-purple-50 rounded-lg p-4 border border-purple-100 relative">
-          <!-- Status Badge (Top Right) -->
-          <div id="statusBadge" class="absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full hidden-force shadow-sm">
-            <!-- Content will be set by JS -->
-          </div>
+          <!-- Status Badge -->
+          <div id="statusBadge" class="absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full hidden-force shadow-sm"></div>
 
           <h3 class="text-wu-purple font-bold border-b border-purple-200 pb-2 mb-3 pr-24">
             <i class="fa-solid fa-user-graduate mr-2"></i>ข้อมูลนักศึกษา
@@ -129,13 +126,11 @@
             <p><span class="font-semibold w-24 inline-block">หลักสูตร:</span> <span id="disp_program">-</span></p>
             <p><span class="font-semibold w-24 inline-block">จังหวัด:</span> <span id="disp_province">-</span></p>
             
-            <!-- เพิ่มส่วนแสดงสถานะ -->
             <p class="border-t border-purple-200 pt-2 mt-2">
               <span class="font-semibold w-24 inline-block">สถานะเดิม:</span> 
               <span id="disp_currentStatus" class="font-bold">-</span>
             </p>
 
-            <!-- เพิ่มส่วนแสดงวันที่บันทึก -->
             <p id="row_lastRecorded" class="text-xs text-gray-500 mt-1 hidden-force">
               <span class="font-semibold"><i class="fa-regular fa-clock mr-1"></i>บันทึกข้อมูลล่าสุด:</span> 
               <span id="disp_lastRecorded">-</span>
@@ -159,7 +154,7 @@
               </select>
             </div>
 
-            <!-- Part 3: Reservation (Conditional) -->
+            <!-- Part 3: Reservation -->
             <div id="reservationContainer" class="opacity-50 pointer-events-none transition-all duration-300">
               <label class="block text-gray-700 text-sm font-bold mb-2">
                 เลือกวันยื่นผ่อนผันฯ (เฉพาะผู้ที่ยังไม่ได้ดำเนินการ) <span class="text-red-500" id="resReq" style="display:none;">*</span>
@@ -201,59 +196,15 @@
   </div>
 
   <script>
-    // ส่วนนี้จะทำงานอัตโนมัติเมื่อรันนอก Apps Script (เช่น บน GitHub Pages หรือ Local)
-    // เพื่อป้องกัน Error 'google is not defined' และจำลองการทำงานเงียบๆ
-    if (typeof google === 'undefined') {
-      window.google = {
-        script: {
-          run: {
-            withSuccessHandler: function(func) { this.successFunc = func; return this; },
-            withFailureHandler: function(func) { this.failureFunc = func; return this; },
-            checkSystemStatus: function() {
-              // เงียบ: ส่งค่ากลับทันทีว่าระบบเปิด
-              if(this.successFunc) this.successFunc({ isOpen: true, message: '' });
-            },
-            loginUser: function(code, citizen) {
-              // เงียบ: จำลองการล็อกอินสำเร็จทันทีด้วยข้อมูลสมมติ เพื่อให้ UI ทำงานต่อได้
-              setTimeout(() => {
-                if (code && citizen) {
-                  const mockData = {
-                    success: true,
-                    data: {
-                      studentCode: code,
-                      studentName: "ตัวอย่าง ชื่อ-สกุล (GitHub Demo)",
-                      faculty: "ตัวอย่างสำนักวิชา",
-                      program: "ตัวอย่างหลักสูตร",
-                      province: "ตัวอย่างจังหวัด",
-                      currentStatus: "", 
-                      currentReservation: "",
-                      lastRecorded: "" 
-                    }
-                  };
-                  if(this.successFunc) this.successFunc(mockData);
-                } else {
-                  // ถ้ากรอกไม่ครบ ให้แจ้งเตือนตามปกติของ UI
-                  if(this.successFunc) this.successFunc({ success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
-                }
-              }, 500);
-            },
-            saveData: function(code, citizen, status, reservation) {
-              // เงียบ: จำลองการบันทึกสำเร็จ
-              setTimeout(() => {
-                if(this.successFunc) this.successFunc({ 
-                  success: true, 
-                  timestamp: new Date().toLocaleString('th-TH') 
-                });
-              }, 500);
-            }
-          }
-        }
-      };
-    }
+    // ==========================================
+    // CONFIGURATION (ตั้งค่า)
+    // ==========================================
+    // นำ URL ที่ได้จากการ Deploy Web App (Exec URL) มาใส่ตรงนี้
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwxycHZ2fmBAYF98DXhq8Ez-gLUbWUrWtDU4a9NlMEnHG7-MLiaCEjFAKxzCg84xqa7/exec'; 
+    // ==========================================
 
-    // Global User Data
     let currentUser = {};
-    let isSystemOpen = true; // Default
+    let isSystemOpen = true;
 
     function toggleLoading(show) {
       const loader = document.getElementById('loadingState');
@@ -267,6 +218,24 @@
       } else {
         loader.classList.add('hidden-force');
       }
+    }
+
+    // ฟังก์ชันสำหรับเรียก API (ใช้แทน google.script.run)
+    async function callApi(action, payload = {}) {
+        const body = JSON.stringify({ action, ...payload });
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: body,
+                // ใช้ text/plain เพื่อหลีกเลี่ยง CORS Preflight (Google Apps Script รองรับวิธีนี้ดีที่สุด)
+                headers: { "Content-Type": "text/plain;charset=utf-8" }
+            });
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
     }
 
     function checkReservationRequirement() {
@@ -290,7 +259,7 @@
       }
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const code = document.getElementById('studentCode').value;
       const citizen = document.getElementById('citizenId').value;
@@ -299,36 +268,29 @@
 
       toggleLoading(true);
 
-      google.script.run
-        .withSuccessHandler(function(response) {
-          isSystemOpen = response.isOpen;
+      try {
+          // 1. เช็คสถานะระบบ
+          const statusRes = await callApi('checkSystemStatus');
+          isSystemOpen = statusRes.isOpen;
 
-          // If closed, warn but allow login to see data (View Only)
+          // 2. ถ้าปิด แจ้งเตือน (แต่ไปต่อได้เพื่อดูข้อมูล)
           if (!isSystemOpen) {
-             Swal.fire({
+             await Swal.fire({
               icon: 'warning',
               title: 'ระบบปิดการสำรวจแล้ว',
               text: 'ท่านสามารถตรวจสอบข้อมูลได้เท่านั้น แต่ไม่สามารถบันทึกข้อมูลได้',
               confirmButtonText: 'รับทราบ',
               confirmButtonColor: '#d33'
-            }).then(() => {
-              // Proceed to login logic
-               doLogin(code, citizen);
             });
-          } else {
-            // Open, proceed directly
-            doLogin(code, citizen);
           }
-        })
-        .withFailureHandler(onFailure)
-        .checkSystemStatus();
-    }
 
-    function doLogin(code, citizen) {
-        google.script.run
-            .withSuccessHandler(onLoginSuccess)
-            .withFailureHandler(onFailure)
-            .loginUser(code, citizen);
+          // 3. ล็อกอิน
+          const loginRes = await callApi('loginUser', { studentCode: code, citizenId: citizen });
+          onLoginSuccess(loginRes);
+
+      } catch (error) {
+          onFailure(error);
+      }
     }
 
     function onLoginSuccess(result) {
@@ -340,17 +302,16 @@
         
         currentUser = result.data;
         
-        // Populate Student Info
+        // Populate UI
         document.getElementById('disp_studentCode').textContent = currentUser.studentCode;
         document.getElementById('disp_studentName').textContent = currentUser.studentName;
         document.getElementById('disp_faculty').textContent = currentUser.faculty;
         document.getElementById('disp_program').textContent = currentUser.program;
         document.getElementById('disp_province').textContent = currentUser.province;
 
-        // --- UPDATE BADGE ---
+        // Badge
         const badge = document.getElementById('statusBadge');
         badge.classList.remove('hidden-force');
-        
         if (isSystemOpen) {
           badge.textContent = 'เปิดการสำรวจข้อมูล';
           badge.className = 'absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 shadow-sm';
@@ -359,7 +320,7 @@
           badge.className = 'absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 shadow-sm';
         }
 
-        // --- STATUS LOGIC ---
+        // Setup Form
         const statusDisplay = document.getElementById('disp_currentStatus');
         const militarySelect = document.getElementById('militaryStatus');
         const reservationSelect = document.getElementById('reservationDate');
@@ -367,16 +328,11 @@
         const rowLastRec = document.getElementById('row_lastRecorded');
         const dispLastRec = document.getElementById('disp_lastRecorded');
 
-        // Populate Existing Data
         if (currentUser.currentStatus) {
           statusDisplay.textContent = currentUser.currentStatus;
           statusDisplay.className = "font-medium text-green-700";
           militarySelect.value = currentUser.currentStatus;
-          
-          if (currentUser.currentReservation) {
-            reservationSelect.value = currentUser.currentReservation;
-          }
-
+          if (currentUser.currentReservation) reservationSelect.value = currentUser.currentReservation;
           if (currentUser.lastRecorded) {
             rowLastRec.classList.remove('hidden-force');
             dispLastRec.textContent = currentUser.lastRecorded;
@@ -389,37 +345,30 @@
           rowLastRec.classList.add('hidden-force');
         }
 
-        // --- ENABLE/DISABLE LOGIC ---
+        // Logic Disable/Enable
         if (!isSystemOpen) {
-           // SYSTEM CLOSED
            militarySelect.disabled = true;
            reservationSelect.disabled = true;
            saveButton.disabled = true;
            saveButton.innerHTML = '<i class="fa-solid fa-lock"></i> ระบบปิดแล้ว';
            saveButton.classList.add('opacity-50', 'cursor-not-allowed');
            saveButton.classList.remove('hover:bg-green-700'); 
-
         } else if (currentUser.currentStatus === 'เตรียมส่งสัสดีจังหวัด') {
-           // SPECIAL STATUS LOCKED
            militarySelect.disabled = true;
            reservationSelect.disabled = true;
            saveButton.disabled = true;
            saveButton.innerHTML = '<i class="fa-solid fa-lock"></i> ไม่สามารถแก้ไขข้อมูลได้';
            saveButton.classList.add('opacity-50', 'cursor-not-allowed');
            statusDisplay.className = "font-bold text-orange-600";
-
         } else {
-           // NORMAL (OPEN & EDITABLE)
            militarySelect.disabled = false;
            reservationSelect.disabled = false;
            saveButton.disabled = false;
            saveButton.innerHTML = '<i class="fa-solid fa-save"></i> บันทึกข้อมูล';
            saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
-           
            checkReservationRequirement();
         }
         
-        // Initial check for reservation visibility
         if(isSystemOpen && currentUser.currentStatus !== 'เตรียมส่งสัสดีจังหวัด') {
             checkReservationRequirement();
         } else {
@@ -428,12 +377,9 @@
                  resContainer.classList.remove('opacity-50', 'pointer-events-none');
                  resContainer.classList.remove('hidden-force');
              } else {
-                 if(!militarySelect.value) { 
-                    resContainer.classList.add('opacity-50', 'pointer-events-none');
-                 }
+                 if(!militarySelect.value) resContainer.classList.add('opacity-50', 'pointer-events-none');
              }
         }
-
       } else {
         document.getElementById('loginSection').classList.remove('hidden-force');
         Swal.fire({
@@ -446,52 +392,46 @@
       }
     }
 
-    function handleSave(e) {
+    async function handleSave(e) {
       e.preventDefault();
       
       const status = document.getElementById('militaryStatus').value;
       const reservation = document.getElementById('reservationDate').value;
 
-      if (!status) {
-        Swal.fire('กรุณาเลือกสถานะ', '', 'warning');
-        return;
-      }
-
+      if (!status) { Swal.fire('กรุณาเลือกสถานะ', '', 'warning'); return; }
       if (status === 'ยังไม่ได้ดำเนินการ และต้องการผ่อนผันฯ' && !reservation) {
-        Swal.fire('กรุณาเลือกวันยื่นผ่อนผันฯ', '', 'warning');
-        return;
+        Swal.fire('กรุณาเลือกวันยื่นผ่อนผันฯ', '', 'warning'); return;
       }
 
       let confirmTitle = 'ยืนยันการบันทึกข้อมูล?';
       let confirmText = 'กรุณาตรวจสอบความถูกต้องก่อนบันทึก';
-      
       if (currentUser.currentStatus) {
           confirmTitle = 'ยืนยันการปรับปรุงข้อมูล?';
           confirmText = 'ข้อมูลเดิมจะถูกแทนที่ด้วยข้อมูลใหม่';
       }
 
-      Swal.fire({
-        title: confirmTitle,
-        text: confirmText,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#16a34a',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'ยืนยัน',
-        cancelButtonText: 'ยกเลิก'
-      }).then((result) => {
-        if (result.isConfirmed) {
+      const confirm = await Swal.fire({
+        title: confirmTitle, text: confirmText, icon: 'question',
+        showCancelButton: true, confirmButtonColor: '#16a34a', cancelButtonColor: '#d33',
+        confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก'
+      });
+
+      if (confirm.isConfirmed) {
           toggleLoading(true);
-          
-          google.script.run
-            .withSuccessHandler(function(res) {
+          try {
+              const res = await callApi('saveData', {
+                  studentCode: currentUser.studentCode,
+                  citizenId: document.getElementById('citizenId').value,
+                  status: status,
+                  reservation: reservation
+              });
+
               toggleLoading(false);
               document.getElementById('surveySection').classList.remove('hidden-force');
-              
+
               if (res.success) {
                 Swal.fire({
-                  icon: 'success',
-                  title: 'บันทึกข้อมูลสำเร็จ',
+                  icon: 'success', title: 'บันทึกข้อมูลสำเร็จ',
                   text: 'ระบบได้บันทึกข้อมูลเรียบร้อยแล้ว เมื่อ ' + res.timestamp,
                   confirmButtonColor: '#581C87'
                 }).then(() => {
@@ -501,21 +441,18 @@
 
                     rowLastRec.classList.remove('hidden-force');
                     dispLastRec.textContent = res.timestamp;
-                    
                     statusDisplay.textContent = status;
                     statusDisplay.className = "font-medium text-green-700";
-                    
                     currentUser.currentStatus = status;
                     currentUser.lastRecorded = res.timestamp;
                 });
               } else {
                 Swal.fire('เกิดข้อผิดพลาด', res.message, 'error');
               }
-            })
-            .withFailureHandler(onFailure)
-            .saveData(currentUser.studentCode, document.getElementById('citizenId').value, status, reservation);
-        }
-      });
+          } catch (error) {
+              onFailure(error);
+          }
+      }
     }
 
     function onFailure(error) {
@@ -525,23 +462,17 @@
       } else {
           document.getElementById('loginSection').classList.remove('hidden-force');
       }
-      Swal.fire({
-        icon: 'error',
-        title: 'System Error',
-        text: error.message
-      });
+      Swal.fire({ icon: 'error', title: 'System Error', text: error.message || 'Unknown Error' });
     }
 
     function logout() {
       currentUser = {};
       isSystemOpen = true; 
-
       document.getElementById('loginForm').reset();
       document.getElementById('saveForm').reset();
-
       document.getElementById('surveySection').classList.add('hidden-force');
       document.getElementById('loginSection').classList.remove('hidden-force');
-
+      
       const militarySelect = document.getElementById('militaryStatus');
       const reservationSelect = document.getElementById('reservationDate');
       militarySelect.disabled = false;
@@ -555,9 +486,7 @@
       document.getElementById('disp_currentStatus').textContent = '-';
       document.getElementById('disp_currentStatus').className = ''; 
       document.getElementById('row_lastRecorded').classList.add('hidden-force');
-      
       document.getElementById('statusBadge').classList.add('hidden-force');
-
       checkReservationRequirement();
     }
   </script>
